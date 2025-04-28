@@ -1,0 +1,51 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: #ffffff; /* White background */
+    overflow: hidden; /* Hide scrollbars */
+    display: flex; /* Helps if canvas needs centering fallback */
+    justify-content: center; /* Helps if canvas needs centering fallback */
+    align-items: center; /* Helps if canvas needs centering fallback */
+    min-height: 100vh;
+    font-family: sans-serif; /* Basic font for input */
+}
+
+#inputContainer {
+    position: absolute; /* Position over the canvas */
+    top: 15px;
+    left: 15px;
+    background-color: rgba(255, 255, 255, 0.8); /* Slight transparency */
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    z-index: 10; /* Ensure it's above the canvas */
+}
+
+#inputContainer label {
+    margin-right: 5px;
+    font-size: 0.9em;
+}
+
+#inputContainer input[type="text"] {
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 1em;
+}
+
+
+canvas {
+    display: block;
+    /* Optional border removed for cleaner look with input */
+    /* border: 1px solid #eee;  */
+    background-color: #ffffff;
+    /* Ensure canvas is behind the input container if needed */
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
