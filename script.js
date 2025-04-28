@@ -1,44 +1,43 @@
 const canvas = document.getElementById('textCanvas');
 const ctx = canvas.getContext('2d');
-const textInput = document.getElementById('textInput'); // Get the input element
+const textInput = document.getElementById('textInput');
 
 // --- Configuration ---
-// const textToDisplay = "Faizul Hai"; // REMOVED - Now comes from input
-const fontSize = 100; // Adjust for desired text size
-const fontFamily = 'Arial';
-const particleColor = '#000000'; // Black particles
-const lineColor = 'rgba(150, 150, 150, 0.3)'; // Light grey lines
-const particleSize = 1.5; // Size of each dot
-const lineThickness = 0.5; // Thickness of connecting lines
-const density = 4; // Lower number = more particles (scan every 'density' pixel)
+const desktopFontSize = 100; // Font size for larger screens
+const mobileFontSize = 55;   // Font size for smaller screens (adjust as needed)
+const mobileBreakpoint = 768; // Width threshold for using mobile size (adjust as needed)
 
-// Interaction parameters
-const mouseRadius = 100; // Area of effect around the mouse
-const repulsionStrength = 5; // How strongly particles are pushed away
-const returnSpeed = 0.06; // How quickly particles return to origin (0 to 1)
-const friction = 0.95; // Slows down particle movement (0 to 1)
+const fontFamily = 'Arial';
+const particleColor = '#000000';
+const lineColor = 'rgba(150, 150, 150, 0.3)';
+const particleSize = 1.5;
+const lineThickness = 0.5;
+const density = 4;
+
+const interactionRadius = 100; // Renamed from mouseRadius
+const repulsionStrength = 5;
+const returnSpeed = 0.06;
+const friction = 0.95;
 // --- End Configuration ---
 
 let particles = [];
-let mouse = {
+let interactionPoint = { // Renamed from mouse for clarity
     x: null,
     y: null,
-    radius: mouseRadius
+    radius: interactionRadius
 };
-// Removed textMetrics, textX, textY global variables as they are calculated fresh in initParticles
 
-// Particle Class (No changes needed here)
+// Particle Class (No changes needed from the working PC version)
 class Particle {
     constructor(x, y) {
-        this.baseX = x; // Original X position
-        this.baseY = y; // Original Y position
-        this.x = this.baseX + (Math.random() - 0.5) * canvas.width * 0.1; // Start near base but spread out a bit
-        this.y = this.baseY + (Math.random() - 0.5) * canvas.height * 0.1;
-        // this.x = Math.random() * canvas.width; // Option: Start fully random
-        // this.y = Math.random() * canvas.height;
+        this.baseX = x;
+        this.baseY = y;
+        // Start near base for faster initial formation
+        this.x = this.baseX + (Math.random() - 0.5) * 50;
+        this.y = this.baseY + (Math.random() - 0.5) * 50;
         this.size = particleSize;
-        this.vx = 0; // Velocity X
-        this.vy = 0; // Velocity Y
+        this.vx = 0;
+        this.vy = 0;
     }
 
     draw() {
@@ -57,17 +56,18 @@ class Particle {
     }
 
     update() {
-        let dxMouse = this.x - mouse.x;
-        let dyMouse = this.y - mouse.y;
-        let distanceMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+        let dxInteract = this.x - interactionPoint.x;
+        let dyInteract = this.y - interactionPoint.y;
+        let distanceInteract = Math.sqrt(dxInteract * dxInteract + dyInteract * dyInteract);
         let forceDirectionX = 0;
         let forceDirectionY = 0;
         let force = 0;
 
-        if (mouse.x !== null && distanceMouse < mouse.radius) {
-            force = (mouse.radius - distanceMouse) / mouse.radius * repulsionStrength;
-            forceDirectionX = dxMouse / distanceMouse;
-            forceDirectionY = dyMouse / distanceMouse;
+        // Check if interaction point is valid and close enough
+        if (interactionPoint.x !== null && distanceInteract < interactionPoint.radius) {
+            force = (interactionPoint.radius - distanceInteract) / interactionPoint.radius * repulsionStrength;
+            forceDirectionX = dxInteract / distanceInteract;
+            forceDirectionY = dyInteract / distanceInteract;
         }
 
         let dxBase = this.baseX - this.x;
@@ -84,53 +84,55 @@ class Particle {
     }
 }
 
-// Get text pixel data and create particles (MODIFIED)
+// Get text pixel data and create particles (MODIFIED for font size)
 function initParticles() {
-    particles = []; // Clear existing particles
-    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas before drawing text
+    particles = [];
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const currentText = textInput.value.trim(); // Get text from input field
-
-    // If input is empty, don't draw anything
+    const currentText = textInput.value.trim();
     if (!currentText) {
-        console.log("Input is empty, clearing particles.");
-        // Animation loop will continue but draw nothing
-        return;
+        return; // Exit if no text
     }
 
-    // Set font style for measurement and drawing
-    ctx.fillStyle = 'rgba(0,0,0,1)'; // Use opaque black for accurate getImageData
-    ctx.font = `${fontSize}px ${fontFamily}`;
+    // *** Determine font size based on screen width ***
+    const currentFontSize = window.innerWidth < mobileBreakpoint ? mobileFontSize : desktopFontSize;
+
+    ctx.fillStyle = 'rgba(0,0,0,1)';
+    ctx.font = `bold ${currentFontSize}px ${fontFamily}`; // Use determined size
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Measure text to center it
     const textMetrics = ctx.measureText(currentText);
-    const actualHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+    // Using approximation for height if specific metrics aren't available
+    const actualHeight = (textMetrics.actualBoundingBoxAscent || currentFontSize * 0.75) +
+                         (textMetrics.actualBoundingBoxDescent || currentFontSize * 0.25);
     const actualWidth = textMetrics.width;
 
-    // Calculate position to center the text
-    // Recalculate textX/textY each time based on current text
-    const textX = Math.floor((canvas.width / 2) - (actualWidth / 2) - textMetrics.actualBoundingBoxLeft);
-    const textY = Math.floor((canvas.height / 2) - (actualHeight / 2) + textMetrics.actualBoundingBoxAscent);
+    // Center text (adjust Y slightly if needed, baseline 'middle' helps a lot)
+    const textDrawX = canvas.width / 2;
+    const textDrawY = canvas.height / 2;
 
-    // Draw the text centered (this is temporary, just to get pixel data)
-    ctx.fillText(currentText, canvas.width / 2, canvas.height / 2);
+    // Draw temporarily to get data
+    ctx.fillText(currentText, textDrawX, textDrawY);
 
-    // Get pixel data for the drawn text area
-    const textImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the temporary text
+    try {
+        // Get image data for the whole canvas (simpler than calculating exact box)
+        const textImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the temporary text
 
-    // Scan the image data
-    for (let y = 0; y < textImageData.height; y += density) {
-        for (let x = 0; x < textImageData.width; x += density) {
-            const alphaIndex = (y * textImageData.width + x) * 4 + 3;
-            if (textImageData.data[alphaIndex] > 128) {
-                particles.push(new Particle(x, y));
+        // Scan the image data
+        for (let y = 0; y < textImageData.height; y += density) {
+            for (let x = 0; x < textImageData.width; x += density) {
+                const alphaIndex = (y * textImageData.width + x) * 4 + 3;
+                if (textImageData.data[alphaIndex] > 128) { // Check alpha channel
+                    particles.push(new Particle(x, y));
+                }
             }
         }
+    } catch (error) {
+        console.error("Error getting ImageData:", error);
+        particles = []; // Clear particles on error
     }
-    console.log(`Initialized ${particles.length} particles for "${currentText}".`);
 }
 
 // Animation loop (No changes needed)
@@ -145,44 +147,93 @@ function animate() {
 
 // --- Event Listeners ---
 
-// Update mouse coordinates on move (No changes needed)
-window.addEventListener('mousemove', (event) => {
+// Helper to get coordinates relative to canvas
+function getRelativeCoords(event) {
     const rect = canvas.getBoundingClientRect();
-    mouse.x = event.clientX - rect.left;
-    mouse.y = event.clientY - rect.top;
+    let clientX, clientY;
+    if (event.touches && event.touches.length > 0) {
+        clientX = event.touches[0].clientX;
+        clientY = event.touches[0].clientY;
+    } else {
+        clientX = event.clientX;
+        clientY = event.clientY;
+    }
+    return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+    };
+}
+
+// Mouse Listeners (Keep the original simple ones)
+canvas.addEventListener('mousemove', (event) => {
+    const coords = getRelativeCoords(event);
+    interactionPoint.x = coords.x;
+    interactionPoint.y = coords.y;
 });
 
-// Reset mouse coordinates when it leaves the canvas (No changes needed)
 canvas.addEventListener('mouseleave', () => {
-    mouse.x = null;
-    mouse.y = null;
+    interactionPoint.x = null;
+    interactionPoint.y = null;
 });
-canvas.addEventListener('mouseout', () => {
-    mouse.x = null;
-    mouse.y = null;
+// Optional: mouseout might be redundant if mouseleave is handled
+// canvas.addEventListener('mouseout', () => {
+//     interactionPoint.x = null;
+//     interactionPoint.y = null;
+// });
+
+
+// *** Touch Listeners (NEW) ***
+canvas.addEventListener('touchstart', (event) => {
+    // Prevent scroll only if touch is on canvas, not input field
+    if (event.target === canvas) {
+         // event.preventDefault(); // Careful: might prevent text selection/input focus
+    }
+    const coords = getRelativeCoords(event);
+    interactionPoint.x = coords.x;
+    interactionPoint.y = coords.y;
+}, { passive: true }); // Use passive: true if not preventing default
+
+canvas.addEventListener('touchmove', (event) => {
+    // Prevent default scroll ONLY when dragging on the canvas itself
+    if (event.target === canvas) {
+        event.preventDefault();
+    }
+    const coords = getRelativeCoords(event);
+    interactionPoint.x = coords.x;
+    interactionPoint.y = coords.y;
+}, { passive: false }); // MUST be passive: false to allow preventDefault
+
+canvas.addEventListener('touchend', () => {
+    interactionPoint.x = null;
+    interactionPoint.y = null;
 });
 
-// Handle window resize (calls initParticles which now reads input)
+canvas.addEventListener('touchcancel', () => { // Handle interruptions
+    interactionPoint.x = null;
+    interactionPoint.y = null;
+});
+
+
+// Resize Listener
 window.addEventListener('resize', () => {
+    // No debouncing for simplicity, might flicker slightly during resize
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    initParticles(); // Re-initialize particles based on new size and CURRENT input text
+    initParticles(); // Re-initialize with new size and font size
 });
 
-// *** NEW: Listen for changes in the text input field ***
+// Input Listener
 textInput.addEventListener('input', () => {
-    // Optional: debounce this for performance on very fast typing if needed
+    // No debouncing for simplicity
     initParticles();
 });
 
 // --- Initialization ---
+function initialize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    initParticles();
+    animate();
+}
 
-// Set initial canvas size
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
-// Create particles based on the INITIAL text in the input field
-initParticles();
-
-// Start the animation loop
-animate();
+initialize(); // Run the setup
