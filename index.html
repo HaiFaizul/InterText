@@ -2,19 +2,282 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- Crucial for mobile: sets initial scale and width -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Text Input</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Interactive Particle Text (Single File)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #ffffff; /* White background */
+            overflow: hidden; /* Hide scrollbars */
+            font-family: sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #inputContainer {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: auto;
+            max-width: 90%;
+            background-color: rgba(240, 240, 240, 0.85); /* Light background for input on white page */
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1); /* Softer shadow */
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #inputContainer label {
+            font-size: 0.9em;
+            white-space: nowrap;
+            color: #333;
+        }
+
+        #inputContainer input[type="text"] {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+            flex-grow: 1;
+            min-width: 180px; /* Adjusted for "Faizul Hai" */
+        }
+
+        canvas {
+            display: block;
+            background-color: #ffffff; /* Ensure canvas bg is white */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+    </style>
 </head>
 <body>
     <div id="inputContainer">
-        <label for="textInput">Text:</label> <!-- Shortened Label -->
-        <input type="text" id="textInput" value="Faizul Hai">
+        <label for="textInput">Text:</label>
+        <input type="text" id="textInput" value="Faizul Hai"> <!-- Default text set -->
     </div>
 
     <canvas id="textCanvas"></canvas>
 
-    <script src="script.js"></script>
+    <script>
+        const canvas = document.getElementById('textCanvas');
+        const ctx = canvas.getContext('2d');
+        const textInput = document.getElementById('textInput');
+
+        // --- Configuration ---
+        const desktopFontSize = 100;
+        const mobileFontSize = 55;
+        const mobileBreakpoint = 768;
+
+        const fontFamily = 'Arial, sans-serif'; // Ensure good font
+        const particleColor = '#000000';        // Black particles
+        const lineColor = 'rgba(150, 150, 150, 0.3)'; // Light grey lines
+        const particleSize = 1.5;
+        const lineThickness = 0.5;
+        const density = 4; // Lower = more particles
+
+        const interactionRadius = 100;
+        const repulsionStrength = 5;
+        const returnSpeed = 0.06;
+        const friction = 0.95;
+        // --- End Configuration ---
+
+        let particles = [];
+        let interactionPoint = {
+            x: null,
+            y: null,
+            radius: interactionRadius
+        };
+
+        class Particle {
+            constructor(x, y) {
+                this.baseX = x;
+                this.baseY = y;
+                this.x = this.baseX + (Math.random() - 0.5) * 50;
+                this.y = this.baseY + (Math.random() - 0.5) * 50;
+                this.size = particleSize * (Math.random() * 0.3 + 0.85); // Slight size variation
+                this.vx = 0;
+                this.vy = 0;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.baseX, this.baseY);
+                ctx.strokeStyle = lineColor;
+                ctx.lineWidth = lineThickness;
+                ctx.stroke();
+
+                ctx.fillStyle = particleColor;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            update() {
+                let dxInteract = this.x - interactionPoint.x;
+                let dyInteract = this.y - interactionPoint.y;
+                let distanceInteract = Math.sqrt(dxInteract * dxInteract + dyInteract * dyInteract);
+                let forceDirectionX = 0;
+                let forceDirectionY = 0;
+                let force = 0;
+
+                if (interactionPoint.x !== null && distanceInteract < interactionPoint.radius) {
+                    force = (interactionPoint.radius - distanceInteract) / interactionPoint.radius * repulsionStrength;
+                    forceDirectionX = dxInteract / distanceInteract;
+                    forceDirectionY = dyInteract / distanceInteract;
+                }
+
+                let dxBase = this.baseX - this.x;
+                let dyBase = this.baseY - this.y;
+
+                this.vx += forceDirectionX * force;
+                this.vy += forceDirectionY * force;
+                this.vx += dxBase * returnSpeed;
+                this.vy += dyBase * returnSpeed;
+                this.vx *= friction;
+                this.vy *= friction;
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const currentText = textInput.value.trim();
+            if (!currentText) {
+                return;
+            }
+
+            const currentFontSize = window.innerWidth < mobileBreakpoint ? mobileFontSize : desktopFontSize;
+
+            ctx.fillStyle = 'rgba(0,0,0,1)'; // Must be opaque for getImageData
+            ctx.font = `bold ${currentFontSize}px ${fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // Draw temporarily to get data
+            const textDrawX = canvas.width / 2;
+            const textDrawY = canvas.height / 2;
+            ctx.fillText(currentText, textDrawX, textDrawY);
+
+            try {
+                const textImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                for (let y = 0; y < textImageData.height; y += density) {
+                    for (let x = 0; x < textImageData.width; x += density) {
+                        const alphaIndex = (y * textImageData.width + x) * 4 + 3;
+                        if (textImageData.data[alphaIndex] > 128) {
+                            particles.push(new Particle(x, y));
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Error getting ImageData:", error);
+                particles = [];
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+            }
+            requestAnimationFrame(animate);
+        }
+
+        function getRelativeCoords(event) {
+            const rect = canvas.getBoundingClientRect();
+            let clientX, clientY;
+            if (event.touches && event.touches.length > 0) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            } else {
+                clientX = event.clientX;
+                clientY = event.clientY;
+            }
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        canvas.addEventListener('mousemove', (event) => {
+            const coords = getRelativeCoords(event);
+            interactionPoint.x = coords.x;
+            interactionPoint.y = coords.y;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            interactionPoint.x = null;
+            interactionPoint.y = null;
+        });
+
+        canvas.addEventListener('touchstart', (event) => {
+            const coords = getRelativeCoords(event);
+            interactionPoint.x = coords.x;
+            interactionPoint.y = coords.y;
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', (event) => {
+            if (event.target === canvas) { event.preventDefault(); }
+            const coords = getRelativeCoords(event);
+            interactionPoint.x = coords.x;
+            interactionPoint.y = coords.y;
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', () => {
+            interactionPoint.x = null;
+            interactionPoint.y = null;
+        });
+        canvas.addEventListener('touchcancel', () => {
+            interactionPoint.x = null;
+            interactionPoint.y = null;
+        });
+
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                initParticles();
+            }, 100); // Debounce slightly
+        });
+
+        let inputTimeout;
+        textInput.addEventListener('input', () => {
+            clearTimeout(inputTimeout);
+            inputTimeout = setTimeout(() => {
+                initParticles();
+            }, 300); // Debounce slightly
+        });
+
+        function initialize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            initParticles(); // Create particles based on default text
+            animate();
+        }
+
+        initialize();
+    </script>
 </body>
 </html>
